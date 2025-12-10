@@ -1,0 +1,11 @@
+numpy>=2.3.0
+requests
+python-dotenv
+pydantic
+docling
+lancedb
+tiktoken
+fastmcp
+
+# for testing:
+# uv add --dev pytest pytest-cov pytest-asyncio
