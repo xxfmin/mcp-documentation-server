@@ -13,6 +13,17 @@ from .models import (
     Collection,
     IndexingResult
 )
+from .errors import (
+    MCPError,
+    CollectionNotFoundError,
+    DocumentNotFoundError,
+    CollectionAlreadyExistsError,
+    CollectionNotEmptyError,
+    IndexingError,
+    SearchError,
+    ValidationError,
+    format_error_response,
+)
 
 
 __all__ = [
@@ -26,6 +37,17 @@ __all__ = [
     "SearchResult",
     "Collection",
     "IndexingResult",
+
+    # Errors
+    "MCPError",
+    "CollectionNotFoundError",
+    "DocumentNotFoundError",
+    "CollectionAlreadyExistsError",
+    "CollectionNotEmptyError",
+    "IndexingError",
+    "SearchError",
+    "ValidationError",
+    "format_error_response",
 
     # Functions
     "sanitize_filename",
