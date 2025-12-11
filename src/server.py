@@ -1,17 +1,23 @@
 import logging
-from typing import List, Optional
+from typing import List, Optional, Any
 from fastmcp import FastMCP, Context
 from dotenv import load_dotenv
 
 from core import DocumentManager
-from lib import Config
-
-mcp = FastMCP(name="Documentation Server")
+from lib import (
+    Config,
+    MCPError,
+    CollectionNotFoundError,
+    DocumentNotFoundError,
+    CollectionNotEmptyError,
+    CollectionAlreadyExistsError,
+    format_error_response,
+)
 
 load_dotenv()
 logger = logging.getLogger(__name__)
 
-mcp = FastMCP(name = "documentation-server", version="1.0.0")
+mcp = FastMCP(name="documentation-server", version="1.0.0")
 document_manager: Optional[DocumentManager] = None
 
 def get_document_manager() -> DocumentManager:
@@ -43,14 +49,25 @@ def create_collection(
         embedding_model: Override default embedding model
         chunk_size: Max chunk tokens (default: 512)
         chunk_overlap: Overlap tokens (default: 50)
+        
+    Returns:
+        Dictionary with collection details on success, or error details on failure
     """
-    return get_document_manager().create_collection(
-        collection_id=name,
-        description=description,
-        embedding_model=embedding_model,
-        chunk_size=chunk_size,
-        chunk_overlap=chunk_overlap,
-    )
+    try:
+        return get_document_manager().create_collection(
+            collection_id=name,
+            description=description,
+            embedding_model=embedding_model,
+            chunk_size=chunk_size,
+            chunk_overlap=chunk_overlap,
+        )
+    except ValueError as e:
+        # Collection already exists
+        return CollectionAlreadyExistsError(name).to_dict()
+    except Exception as e:
+        logger.error(f"Failed to create collection: {e}", exc_info=True)
+        return format_error_response(e)
+
 
 @mcp.tool()
 def list_collections() -> dict:
@@ -66,6 +83,68 @@ def list_collections() -> dict:
         - last_updated: ISO timestamp of last update
     """
     return {"collections": get_document_manager().list_collections()}
+
+
+@mcp.tool()
+def get_collection(name: str) -> dict:
+    """
+    Get detailed information about a specific collection.
+    
+    Args:
+        name: Collection name/ID
+        
+    Returns:
+        Dictionary with collection details:
+        - id: Collection identifier
+        - description: Human-readable description
+        - embedding_model: Model used for embeddings
+        - chunk_size: Maximum chunk size in tokens
+        - chunk_overlap: Overlap between chunks in tokens
+        - document_count: Number of documents
+        - chunk_count: Total number of chunks
+        - created_at: ISO timestamp of creation
+        - last_updated: ISO timestamp of last update
+    """
+    collection = get_document_manager().get_collection(name)
+    if not collection:
+        return CollectionNotFoundError(
+            name,
+            [c["id"] for c in get_document_manager().list_collections()]
+        ).to_dict()
+    return collection
+
+
+@mcp.tool()
+def delete_collection(
+    name: str,
+    force: bool = False,
+) -> dict:
+    """
+    Delete a collection and all its documents.
+    
+    Args:
+        name: Collection name/ID to delete
+        force: If True, delete even if collection contains documents.
+               If False (default), will return error if collection is not empty.
+               
+    Returns:
+        Dictionary with deletion result:
+        - collection_id: The collection that was deleted
+        - status: "deleted" on success
+        - documents_deleted: Number of documents removed
+        - chunks_deleted: Number of chunks removed
+        
+        On error, returns actionable error details with suggestions.
+    """
+    try:
+        return get_document_manager().delete_collection(name, force=force)
+    except CollectionNotFoundError as e:
+        return e.to_dict()
+    except CollectionNotEmptyError as e:
+        return e.to_dict()
+    except Exception as e:
+        logger.error(f"Failed to delete collection: {e}", exc_info=True)
+        return format_error_response(e)
 
 # Document Management
 @mcp.tool()
@@ -158,13 +237,13 @@ def get_document(document_id: str) -> dict:
         - created_at: ISO timestamp of when document was indexed
         - chunks_count: Total number of chunks in the document
         
-        If document not found, returns:
-        - error: Error message
+        If document not found, returns actionable error with suggestions.
     """
     doc = get_document_manager().get_document(document_id)
     if not doc:
-        return {"error": f"Document {document_id} not found"}
+        return DocumentNotFoundError(document_id).to_dict()
     return doc
+
 
 @mcp.tool()
 def delete_document(document_id: str) -> dict:
@@ -182,8 +261,9 @@ def delete_document(document_id: str) -> dict:
     Returns:
         Dictionary with deletion result:
         - document_id: The document ID that was requested for deletion
-        - status: "deleted" if successful, "not_found" if document doesn't exist
-        - message: Optional helpful message (if document not found, suggests using list_documents)
+        - status: "deleted" if successful
+        
+        If document not found, returns actionable error with suggestions.
     """
     manager = get_document_manager()
     success = manager.delete_document(document_id)
@@ -194,12 +274,48 @@ def delete_document(document_id: str) -> dict:
             "status": "deleted",
         }
     else:
-        # Provide helpful message when document not found
-        return {
-            "document_id": document_id,
-            "status": "not_found",
-            "message": f"Document '{document_id}' was not found. Use 'list_documents' to see available documents.",
-        }
+        return DocumentNotFoundError(document_id).to_dict()
+
+
+@mcp.tool()
+def update_document_metadata(
+    document_id: str,
+    title: Optional[str] = None,
+    metadata: Optional[dict] = None,
+) -> dict:
+    """
+    Update document metadata without re-indexing.
+    
+    Use this to change the title or add/update custom metadata for a document.
+    The document content and chunks remain unchanged.
+    
+    Args:
+        document_id: Unique document identifier
+        title: New title for the document (optional)
+        metadata: Dictionary of custom metadata to merge with existing metadata (optional).
+                 Existing keys will be updated, new keys will be added.
+    
+    Returns:
+        Dictionary with update result:
+        - document_id: Document identifier
+        - status: "updated" on success
+        - title: Updated title
+        - custom_metadata: Updated metadata dictionary
+        - updated_at: ISO timestamp of update
+        
+        If document not found, returns actionable error with suggestions.
+    """
+    try:
+        return get_document_manager().update_document_metadata(
+            document_id=document_id,
+            title=title,
+            custom_metadata=metadata,
+        )
+    except DocumentNotFoundError as e:
+        return e.to_dict()
+    except Exception as e:
+        logger.error(f"Failed to update document metadata: {e}", exc_info=True)
+        return format_error_response(e)
 
 # Search
 @mcp.tool()
@@ -249,6 +365,73 @@ def search_documents(
     )
     return {
         "query": query,
+        "results": results,
+        "total_results": len(results),
+    }
+
+
+@mcp.tool()
+def hybrid_search(
+    query: str,
+    document_id: Optional[str] = None,
+    collection_ids: Optional[List[str]] = None,
+    top_k: int = 10,
+    include_context: bool = False,
+    vector_weight: float = 0.7,
+    keyword_weight: float = 0.3,
+    rerank: bool = False,
+    rerank_method: str = "combined",
+) -> dict:
+    """
+    Search documents using hybrid search (vector similarity + keyword matching).
+    
+    Combines semantic search with keyword matching for improved precision.
+    This is especially useful when you need both conceptual relevance AND
+    specific term matching.
+    
+    Args:
+        query: Natural language search query
+        document_id: Optional document ID to search within a specific document
+        collection_ids: Optional list of collection IDs to search
+        top_k: Maximum number of results to return (default: 10)
+        include_context: If True, includes adjacent chunks as context
+        vector_weight: Weight for semantic similarity (0.0 to 1.0, default: 0.7)
+        keyword_weight: Weight for keyword matching (0.0 to 1.0, default: 0.3)
+        rerank: If True, apply additional reranking to improve results
+        rerank_method: Reranking strategy:
+                      - "keyword_boost": Boost exact keyword matches
+                      - "length_penalty": Penalize very short/long chunks
+                      - "position_boost": Favor chunks from document start
+                      - "combined": Apply all strategies (default)
+    
+    Returns:
+        Dictionary containing:
+        - query: The original search query
+        - search_type: "hybrid" to indicate search type used
+        - weights: Object showing vector_weight and keyword_weight used
+        - reranked: Boolean indicating if reranking was applied
+        - results: List of search results (same format as search_documents)
+        - total_results: Total number of results returned
+    """
+    results = get_document_manager().hybrid_search(
+        query=query,
+        document_id=document_id,
+        collection_ids=collection_ids,
+        top_k=top_k,
+        include_context=include_context,
+        vector_weight=vector_weight,
+        keyword_weight=keyword_weight,
+        rerank=rerank,
+        rerank_method=rerank_method,
+    )
+    return {
+        "query": query,
+        "search_type": "hybrid",
+        "weights": {
+            "vector": vector_weight,
+            "keyword": keyword_weight,
+        },
+        "reranked": rerank,
         "results": results,
         "total_results": len(results),
     }
@@ -338,6 +521,91 @@ def list_uploads_files() -> dict:
         - supported: Boolean indicating if file format is supported for indexing
     """
     return {"files": get_document_manager().list_uploads_files()}
+
+
+# System
+@mcp.tool()
+def get_system_stats() -> dict:
+    """
+    Get comprehensive system statistics and configuration.
+    
+    Provides an overview of the documentation server's current state,
+    including storage usage, document counts, and configuration settings.
+    
+    Returns:
+        Dictionary containing:
+        - collections: Object with total count and per-collection stats
+        - documents: Object with total document count
+        - chunks: Object with total chunk count
+        - storage: Object with storage usage details:
+          - data_directory: Path to data directory
+          - total_size_bytes: Total storage used
+          - total_size_formatted: Human-readable total size
+          - vector_store_bytes: Vector database size
+          - document_db_bytes: Document metadata database size
+        - embedding_cache: Cache statistics if enabled
+        - document_index: Index statistics if enabled
+        - config: Current configuration settings:
+          - embedding_model: Model used for embeddings
+          - default_chunk_size: Default chunk size in tokens
+          - default_chunk_overlap: Default overlap in tokens
+          - cache_enabled: Whether embedding cache is enabled
+          - parallel_enabled: Whether parallel processing is enabled
+    """
+    return get_document_manager().get_system_stats()
+
+
+@mcp.tool()
+def get_server_info() -> dict:
+    """
+    Get basic server information and available capabilities.
+    
+    Returns:
+        Dictionary containing:
+        - name: Server name
+        - version: Server version
+        - capabilities: List of available features
+        - tools: List of available tool names
+    """
+    return {
+        "name": "documentation-server",
+        "version": "1.0.0",
+        "capabilities": [
+            "document_indexing",
+            "semantic_search",
+            "hybrid_search",
+            "reranking",
+            "collections",
+            "metadata_management",
+            "context_windows",
+            "file_uploads",
+        ],
+        "tools": [
+            # Collection Management
+            "create_collection",
+            "list_collections",
+            "get_collection",
+            "delete_collection",
+            # Document Management
+            "index_document",
+            "list_documents",
+            "get_document",
+            "delete_document",
+            "update_document_metadata",
+            # Search
+            "search_documents",
+            "hybrid_search",
+            "get_context_window",
+            # File Upload
+            "get_uploads_path",
+            "process_uploads",
+            "list_uploads_files",
+            # System
+            "get_system_stats",
+            "get_server_info",
+        ],
+    }
+
 
 if __name__ == "__main__":
     mcp.run()
