@@ -81,7 +81,7 @@ class Embedder:
                 """Wrapper to make embedding function callable."""
                 try:
                     # Try calling directly first
-                    return embedding_func(texts)
+                    return embedding_func(texts)  # type: ignore[operator]
                 except TypeError as e:
                     error_msg = str(e)
                     if "'TransformersEmbeddingFunction' object is not callable" in error_msg or "not callable" in error_msg.lower():
@@ -89,7 +89,7 @@ class Embedder:
                         # Method 1: Try embed method
                         if hasattr(embedding_func, 'embed'):
                             try:
-                                return embedding_func.embed(texts)
+                                return embedding_func.embed(texts)  # type: ignore[attr-defined]
                             except Exception:
                                 pass
                         
@@ -107,7 +107,7 @@ class Embedder:
                                     result = model_attr.encode(texts if isinstance(texts, list) else [texts])
                                     # Convert to list if needed
                                     if hasattr(result, 'tolist'):
-                                        result = result.tolist()
+                                        result = result.tolist()  # type: ignore[attr-defined]
                                     elif hasattr(result, '__iter__') and not isinstance(result, (list, tuple)):
                                         result = list(result)
                                     # If single text was passed, return single embedding
@@ -128,12 +128,12 @@ class Embedder:
                         if hasattr(embedding_func, 'compute_source_embeddings'):
                             try:
                                 # compute_source_embeddings expects a list of texts
-                                result = embedding_func.compute_source_embeddings(
+                                result = embedding_func.compute_source_embeddings(  # type: ignore[attr-defined]
                                     texts if isinstance(texts, list) else [texts]
                                 )
                                 # Convert to list format if needed
                                 if hasattr(result, 'tolist'):
-                                    result = result.tolist()
+                                    result = result.tolist()  # type: ignore[attr-defined]
                                 elif hasattr(result, '__iter__') and not isinstance(result, (list, tuple)):
                                     result = list(result)
                                 # If single text was passed, return single embedding
@@ -145,7 +145,7 @@ class Embedder:
                         
                         # Method 4: Try source attribute
                         if hasattr(embedding_func, 'source'):
-                            source_func = embedding_func.source
+                            source_func = embedding_func.source  # type: ignore[attr-defined]
                             if callable(source_func):
                                 try:
                                     return source_func(texts)

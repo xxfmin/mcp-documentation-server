@@ -1,5 +1,3 @@
-"""In-memory indexing system for O(1) document and chunk lookups - NEW component."""
-
 from datetime import datetime, timezone
 import json
 import hashlib
@@ -11,17 +9,14 @@ from lib import Config
 
 logger = logging.getLogger(__name__)
 
+"""
+In-memory indexing system for O(1) document and chunk lookups.
+
+Replaces linear searches with hash-based maps for scalability.
+Only enabled if MCP_INDEXING_ENABLED=true.
+"""
 
 class DocumentIndex:
-    """
-    In-memory indexing system for O(1) document and chunk lookups.
-    
-    Replaces linear searches with hash-based maps for scalability.
-    Only enabled if MCP_INDEXING_ENABLED=true.
-    
-    Based on reference implementation but adapted for Python and your architecture.
-    """
-
     def __init__(self, data_dir: Path):
         """
         Initialize DocumentIndex.

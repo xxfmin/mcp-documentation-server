@@ -1,0 +1,11 @@
+{
+  "python.analysis.extraPaths": ["${workspaceFolder}/server/src"],
+  "python.analysis.autoImportCompletions": true,
+  "python.analysis.typeCheckingMode": "basic",
+  "python.analysis.diagnosticMode": "workspace",
+  "python.analysis.stubPath": "${workspaceFolder}/server/src",
+  "[python]": {
+    "editor.defaultFormatter": "ms-python.black-formatter",
+    "editor.formatOnSave": true
+  }
+}

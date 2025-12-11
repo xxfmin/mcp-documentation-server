@@ -14,7 +14,7 @@ class CollectionManager:
         if data_dir:
             self.data_dir = Path(data_dir)
         else:
-            self.data_dir = Config.BASE_DIR / "data" / "colletions"
+            self.data_dir = Config.BASE_DIR / "data" / "collections"
         self.data_dir.mkdir(parents=True, exist_ok=True)
         logger.info(f"CollectionManager initialized with data_dir: {self.data_dir}")
 

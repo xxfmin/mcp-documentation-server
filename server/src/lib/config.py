@@ -7,8 +7,8 @@ def get_default_data_dir() -> Path:
     base_dir = os.getenv("MCP_BASE_DIR")
     if base_dir:
         return Path(base_dir).expanduser()
-    # Default to project root directory (where this file is located: src/lib/config.py)
-    # Go up 2 levels to get to project root
+    # Default to server root directory
+    # Go up 3 levels to get to server root: server/src/lib/ -> server/src/ -> server/
     project_root = Path(__file__).parent.parent.parent.resolve()
     return project_root
 
