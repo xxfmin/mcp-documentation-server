@@ -7,9 +7,18 @@ def get_default_data_dir() -> Path:
     base_dir = os.getenv("MCP_BASE_DIR")
     if base_dir:
         return Path(base_dir).expanduser()
-    # Default to server root directory
-    # Go up 3 levels to get to server root: server/src/lib/ -> server/src/ -> server/
-    project_root = Path(__file__).parent.parent.parent.resolve()
+    # Default to project root directory (where server/ subdirectory exists)
+    # Go up 4 levels to get to project root: server/src/lib/ -> server/src/ -> server/ -> project_root/
+    current = Path(__file__).resolve()
+    project_root = current.parent.parent.parent.parent
+    # Verify we're in the right place by checking for server/ subdirectory or README.md
+    if (project_root / "server").exists() or (project_root / "README.md").exists():
+        return project_root
+    # Fallback: try to find project root from current working directory
+    cwd = Path.cwd()
+    if (cwd / "server").exists() or (cwd / "README.md").exists():
+        return cwd
+    # Last resort: use the calculated path anyway
     return project_root
 
 # Configuration from environment variables
