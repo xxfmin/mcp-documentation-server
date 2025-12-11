@@ -1,42 +1,4 @@
-# Python-generated files
-__pycache__/
-*.py[oc]
-*.pyc
-build/
-dist/
-wheels/
-*.egg-info
-
-# Virtual environments
-.venv/
-venv/
-env/
-ENV/
-
-# Environment variables
-.env
-.env.local
-.env.*.local
-
-# Data directories (created at runtime)
-data/
-server/data/
-*.db
-*.db-journal
-*.db-wal
-*.db-shm
-
-# Upload directories
-server/uploads/
-
-# LanceDB data
-**/lancedb/
-**/*.lance/
-
-# Reference files
-refs/
-
-# IDE - Keep settings but ignore other files
+# IDE
 .vscode/*
 !.vscode/settings.json
 !.vscode/extensions.json
@@ -45,30 +7,12 @@ refs/
 *.swo
 *.sublime-*
 
-# Python cache
-.pytest_cache/
-.mypy_cache/
-.coverage
-htmlcov/
-*.cover
-.hypothesis/
-
-# Next.js / Client
-client/.next/
-client/out/
-client/node_modules/
-client/.env.local
-client/.env*.local
-client/.vercel
-
 # OS files
 .DS_Store
 Thumbs.db
-*.log
 
-# Temporary files
-*.tmp
-*.temp
-*.bak
-*.swp
-*~
+# Reference files
+refs/
+
+# Legacy data (from before restructuring)
+data
