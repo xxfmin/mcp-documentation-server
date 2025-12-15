@@ -47,3 +47,12 @@ class Config:
     # Default chunk settings
     DEFAULT_CHUNK_SIZE = int(os.getenv("MCP_DEFAULT_CHUNK_SIZE", "512"))
     DEFAULT_CHUNK_OVERLAP = int(os.getenv("MCP_DEFAULT_CHUNK_OVERLAP", "50"))
+
+    # Server transport settings
+    # Transport: "stdio" for CLI/subprocess, "sse" for HTTP/SSE (web clients)
+    TRANSPORT = os.getenv("MCP_TRANSPORT", "stdio")
+    HOST = os.getenv("MCP_HOST", "127.0.0.1")
+    PORT = int(os.getenv("MCP_PORT", "8000"))
+    
+    # CORS settings for web clients (comma-separated origins, or "*" for all)
+    CORS_ORIGINS = os.getenv("MCP_CORS_ORIGINS", "http://localhost:3000,http://127.0.0.1:3000")

@@ -66,12 +66,38 @@ python run.py
 
 Configuration is managed via environment variables (see `src/lib/config.py`):
 
+### Transport Settings
+
+- `MCP_TRANSPORT`: Transport protocol (default: "stdio")
+  - `stdio`: Standard input/output for CLI/subprocess usage
+  - `sse`: Server-Sent Events over HTTP for web clients
+  - `streamable-http`: Alternative HTTP transport
+- `MCP_HOST`: Host address for HTTP transports (default: "127.0.0.1")
+- `MCP_PORT`: Port for HTTP transports (default: 8000)
+- `MCP_CORS_ORIGINS`: Comma-separated allowed origins for CORS (default: "http://localhost:3000,http://127.0.0.1:3000")
+
+### Core Settings
+
 - `MCP_BASE_DIR`: Base directory (defaults to `server/` directory)
 - `MCP_EMBEDDING_MODEL`: Embedding model (default: "Qwen/Qwen3-Embedding-0.6B")
 - `HF_TOKEN`: HuggingFace token for model access
 - `MCP_INDEXING_ENABLED`: Enable document indexing (default: true)
 - `MCP_CACHE_ENABLED`: Enable embedding cache (default: true)
 - `MCP_PARALLEL_ENABLED`: Enable parallel processing (default: true)
+
+## Running for Web Clients
+
+To run the server with SSE transport for web client connections:
+
+```bash
+# PowerShell
+$env:MCP_TRANSPORT="sse"; $env:MCP_PORT="8000"; cd server/src; python server.py
+
+# Bash
+MCP_TRANSPORT=sse MCP_PORT=8000 python server/src/server.py
+```
+
+The server will start on `http://127.0.0.1:8000/sse` with CORS enabled for `http://localhost:3000`.
 
 ## Data Paths
 

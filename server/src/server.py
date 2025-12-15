@@ -1,7 +1,12 @@
 import logging
-from typing import List, Optional, Any
+import os
+from typing import List, Optional, Any, Literal
 from fastmcp import FastMCP, Context
 from dotenv import load_dotenv
+from starlette.middleware import Middleware
+from starlette.middleware.cors import CORSMiddleware
+
+load_dotenv()
 
 from core import DocumentManager
 from lib import (
@@ -14,8 +19,13 @@ from lib import (
     format_error_response,
 )
 
-load_dotenv()
 logger = logging.getLogger(__name__)
+
+# Configure logging for better visibility
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+)
 
 mcp = FastMCP(name="documentation-server", version="1.0.0")
 document_manager: Optional[DocumentManager] = None
@@ -607,5 +617,70 @@ def get_server_info() -> dict:
     }
 
 
+def get_cors_middleware() -> list[Middleware]:
+    """
+    Create CORS middleware for SSE transport.
+    
+    Returns a list of Starlette middleware configured for CORS.
+    """
+    origins_str = Config.CORS_ORIGINS
+    if origins_str == "*":
+        allow_origins = ["*"]
+    else:
+        allow_origins = [o.strip() for o in origins_str.split(",") if o.strip()]
+    
+    return [
+        Middleware(
+            CORSMiddleware,
+            allow_origins=allow_origins,
+            allow_credentials=True,
+            allow_methods=["*"],
+            allow_headers=["*"],
+        )
+    ]
+
+
+def run_server():
+    """
+    Run the MCP server with the configured transport.
+    
+    Transport is configured via MCP_TRANSPORT environment variable:
+    - "stdio": Standard input/output (default, for CLI/subprocess usage)
+    - "sse": Server-Sent Events over HTTP (for web clients)
+    - "streamable-http": Streamable HTTP (alternative to SSE)
+    
+    For SSE/HTTP transports, also configure:
+    - MCP_HOST: Host to bind to (default: 127.0.0.1)
+    - MCP_PORT: Port to bind to (default: 8000)
+    - MCP_CORS_ORIGINS: Comma-separated allowed origins (default: http://localhost:3000)
+    """
+    transport = Config.TRANSPORT.lower()
+    
+    if transport == "stdio":
+        logger.info("Starting MCP server with stdio transport")
+        mcp.run(transport="stdio")
+    
+    elif transport in ("sse", "streamable-http"):
+        host = Config.HOST
+        port = Config.PORT
+        
+        logger.info(f"Starting MCP server with {transport} transport on {host}:{port}")
+        logger.info(f"CORS origins: {Config.CORS_ORIGINS}")
+        
+        # Run with HTTP transport and CORS middleware
+        mcp.run(
+            transport=transport,  # type: ignore
+            host=host,
+            port=port,
+            middleware=get_cors_middleware(),
+        )
+    
+    else:
+        raise ValueError(
+            f"Unknown transport: {transport}. "
+            f"Valid options are: stdio, sse, streamable-http"
+        )
+
+
 if __name__ == "__main__":
-    mcp.run()
+    run_server()
