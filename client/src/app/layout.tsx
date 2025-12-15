@@ -3,6 +3,7 @@ import { Gantari } from "next/font/google";
 import "./globals.css";
 import { SidebarProvider } from "@/components/ui/sidebar";
 import { AppSidebar } from "@/components/app-sidebar";
+import { DocumentProvider } from "@/components/panel-context";
 
 const gantari = Gantari({
   variable: "--font-gantari",
@@ -21,16 +22,23 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en">
-      <body className={`${gantari.variable} font-sans antialiased`}>
-        <SidebarProvider>
-          <div className="flex h-screen w-full">
-            <AppSidebar />
-            <main className="flex-1 h-screen w-full bg-background p-2.5">
-              <div className="h-full w-full rounded-md bg-card">{children}</div>
-            </main>
-          </div>
-        </SidebarProvider>
+    <html lang="en" suppressHydrationWarning>
+      <body
+        className={`${gantari.variable} font-sans antialiased`}
+        suppressHydrationWarning
+      >
+        <DocumentProvider>
+          <SidebarProvider>
+            <div className="flex h-screen w-full">
+              <AppSidebar />
+              <main className="flex-1 h-screen w-full bg-background p-2.5">
+                <div className="h-full w-full rounded-md bg-card">
+                  {children}
+                </div>
+              </main>
+            </div>
+          </SidebarProvider>
+        </DocumentProvider>
       </body>
     </html>
   );

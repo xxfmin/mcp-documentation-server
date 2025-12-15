@@ -18,17 +18,14 @@ import {
   FileText,
   BarChart3,
   Circle,
+  Loader2,
 } from "lucide-react";
+import { useDocuments } from "./panel-context";
 
-interface AppSidebarProps {
-  activeView: string;
-  onViewChangeAction: (view: string) => void;
-}
+export function AppSidebar() {
+  const { isConnected, isConnecting, error, connect } = useDocuments();
+  const [activeView, setActiveView] = React.useState("documents");
 
-export function AppSidebar({
-  activeView,
-  onViewChangeAction,
-}: AppSidebarProps) {
   return (
     <Sidebar className="bg-background border-border px-2">
       <SidebarHeader className="p-6 border-border">
@@ -47,7 +44,7 @@ export function AppSidebar({
         <SidebarMenu className="gap-y-2">
           <SidebarMenuItem>
             <SidebarMenuButton
-              onClick={() => onViewChangeAction("search")}
+              onClick={() => setActiveView("search")}
               isActive={activeView === "search"}
               className="w-full justify-start cursor-pointer hover:bg-card hover:text-white"
             >
@@ -57,7 +54,7 @@ export function AppSidebar({
           </SidebarMenuItem>
           <SidebarMenuItem>
             <SidebarMenuButton
-              onClick={() => onViewChangeAction("collections")}
+              onClick={() => setActiveView("collections")}
               isActive={activeView === "collections"}
               className="w-full justify-start cursor-pointer hover:bg-card hover:text-white"
             >
@@ -67,7 +64,7 @@ export function AppSidebar({
           </SidebarMenuItem>
           <SidebarMenuItem>
             <SidebarMenuButton
-              onClick={() => onViewChangeAction("documents")}
+              onClick={() => setActiveView("documents")}
               isActive={activeView === "documents"}
               className="w-full justify-start cursor-pointer hover:bg-card hover:text-white"
             >
@@ -77,7 +74,7 @@ export function AppSidebar({
           </SidebarMenuItem>
           <SidebarMenuItem>
             <SidebarMenuButton
-              onClick={() => onViewChangeAction("stats")}
+              onClick={() => setActiveView("stats")}
               isActive={activeView === "stats"}
               className="w-full justify-start cursor-pointer hover:bg-card hover:text-white"
             >
@@ -91,13 +88,37 @@ export function AppSidebar({
       <SidebarFooter className="p-4">
         {/* Server Status */}
         <div className="p-4">
-          <div className="flex items-center gap-2">
-            <Circle className="h-2 w-2 fill-primary text-primary animate-pulse" />
-            <span className="text-xs font-bold text-foreground">
-              Server Connected
-            </span>
-            <span className="text-xs text-foreground ">(v1.0.0)</span>
-          </div>
+          {isConnecting ? (
+            <div className="flex items-center gap-2">
+              <Loader2 className="h-3 w-3 animate-spin text-yellow-500" />
+              <span className="text-xs text-foreground/70">Connecting...</span>
+            </div>
+          ) : isConnected ? (
+            <div className="flex items-center gap-2">
+              <Circle className="h-2 w-2 fill-primary text-primary" />
+              <span className="text-xs font-bold text-foreground">
+                Server Connected
+              </span>
+            </div>
+          ) : (
+            <div className="flex flex-col gap-2">
+              <div className="flex items-center gap-2">
+                <Circle className="h-2 w-2 fill-red-500 text-red-500" />
+                <span className="text-xs text-red-400">Disconnected</span>
+              </div>
+              {error && (
+                <p className="text-xs text-red-400/70 truncate" title={error}>
+                  {error}
+                </p>
+              )}
+              <button
+                onClick={() => connect()}
+                className="text-xs text-primary hover:underline text-left"
+              >
+                Retry connection
+              </button>
+            </div>
+          )}
         </div>
       </SidebarFooter>
     </Sidebar>

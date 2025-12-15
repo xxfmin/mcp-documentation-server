@@ -1,34 +1,18 @@
 "use client";
 
 import * as React from "react";
+import { mcpClient } from "@/lib/mcp-client";
+import { Document, Collection, SearchResult } from "@/lib/mcp-types";
 
-// Types matching server responses
-export interface Document {
-  id: string;
-  title: string;
-  collection_id: string;
-  created_at: string;
-  metadata: {
-    filename?: string;
-    document_type?: string;
-    size_bytes?: number;
-  };
-}
-
-export interface Collection {
-  id: string;
-  description?: string;
-  document_count: number;
-  chunk_count: number;
-  last_updated: string;
-}
+// Re-export types for other components
+export type { Document, Collection, SearchResult };
 
 // Extended PanelView to support action forms
 type PanelView =
   | { type: "none" }
   | { type: "document"; document: Document }
   | { type: "collection"; collection: Collection }
-  | { type: "search-results"; query: string; results: any[] }
+  | { type: "search-results"; query: string; results: SearchResult[] }
   // Quick action forms
   | { type: "action:upload-file" }
   | { type: "action:create-collection" }
@@ -41,10 +25,15 @@ interface DocumentContextType {
   selectedView: PanelView;
   isLoading: boolean;
 
+  // Connection state
+  isConnected: boolean;
+  isConnecting: boolean;
+  error: string | null;
+
   // Selection actions
   selectDocument: (doc: Document) => void;
   selectCollection: (col: Collection) => void;
-  showSearchResults: (query: string, results: any[]) => void;
+  showSearchResults: (query: string, results: SearchResult[]) => void;
   clearSelection: () => void;
 
   // Quick action forms
@@ -56,6 +45,9 @@ interface DocumentContextType {
   // Data refresh
   refreshDocuments: () => Promise<void>;
   refreshCollections: () => Promise<void>;
+
+  // Connection control
+  connect: () => Promise<void>;
 }
 
 const DocumentContext = React.createContext<DocumentContextType | null>(null);
@@ -76,21 +68,119 @@ export function DocumentProvider({ children }: { children: React.ReactNode }) {
   });
   const [isLoading, setIsLoading] = React.useState(false);
 
-  const refreshDocuments = async () => {
-    setIsLoading(true);
-    // TODO: Replace with actual MCP client calls
-    setIsLoading(false);
-  };
+  // Connection and error state
+  const [isConnected, setIsConnected] = React.useState(false);
+  const [isConnecting, setIsConnecting] = React.useState(false);
+  const [error, setError] = React.useState<string | null>(null);
 
-  const refreshCollections = async () => {
-    // TODO: Replace with actual MCP client calls
-  };
+  // Use ref to track connection state without triggering re-renders
+  const connectionRef = React.useRef({
+    isConnecting: false,
+    isConnected: false,
+  });
+
+  // Connect to MCP server
+  const connect = React.useCallback(async () => {
+    if (
+      connectionRef.current.isConnected ||
+      connectionRef.current.isConnecting
+    ) {
+      return;
+    }
+
+    connectionRef.current.isConnecting = true;
+    setIsConnecting(true);
+    setError(null);
+
+    try {
+      await mcpClient.connect();
+      connectionRef.current.isConnected = true;
+      connectionRef.current.isConnecting = false;
+      setIsConnected(true);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Failed to connect";
+      connectionRef.current.isConnecting = false;
+      setError(message);
+      setIsConnected(false);
+    } finally {
+      setIsConnecting(false);
+    }
+  }, []);
+
+  // Fetch documents from server
+  const refreshDocuments = React.useCallback(async () => {
+    if (!isConnected) {
+      return;
+    }
+
+    setIsLoading(true);
+    setError(null);
+
+    try {
+      const response = await mcpClient.listDocuments();
+      if (response?.documents) {
+        setDocuments(response.documents);
+      } else {
+        setDocuments([]);
+      }
+    } catch (err) {
+      const message =
+        err instanceof Error ? err.message : "Failed to fetch documents";
+      setError(message);
+    } finally {
+      setIsLoading(false);
+    }
+  }, [isConnected]);
+
+  // Fetch collections from server
+  const refreshCollections = React.useCallback(async () => {
+    if (!isConnected) {
+      return;
+    }
+
+    try {
+      const response = await mcpClient.listCollections();
+      if (response?.collections) {
+        setCollections(response.collections);
+      } else {
+        setCollections([]);
+      }
+    } catch (err) {
+      const message =
+        err instanceof Error ? err.message : "Failed to fetch collections";
+      setError(message);
+    }
+  }, [isConnected]);
+
+  // Connect on mount (client-side only)
+  React.useEffect(() => {
+    if (typeof window !== "undefined") {
+      connect();
+    }
+
+    return () => {
+      connectionRef.current.isConnecting = false;
+      connectionRef.current.isConnected = false;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Fetch data when connected
+  React.useEffect(() => {
+    if (isConnected) {
+      Promise.all([refreshDocuments(), refreshCollections()]);
+    }
+  }, [isConnected, refreshDocuments, refreshCollections]);
 
   const value: DocumentContextType = {
     documents,
     collections,
     selectedView,
     isLoading,
+    // Connection state
+    isConnected,
+    isConnecting,
+    error,
     // Selection
     selectDocument: (doc) =>
       setSelectedView({ type: "document", document: doc }),
@@ -109,6 +199,7 @@ export function DocumentProvider({ children }: { children: React.ReactNode }) {
     // Data
     refreshDocuments,
     refreshCollections,
+    connect,
   };
 
   return (

@@ -6,78 +6,59 @@ import {
   FolderPlus,
   Upload,
   Folder,
-  File,
   FileSpreadsheet,
   Image,
   MoreVertical,
+  Search,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { usePanelControl } from "./collapsible-panels";
 import { useDocuments } from "./panel-context";
 
-const mockDocuments = [
-  {
-    id: "1",
-    title: "Dashboard tech requirements",
-    type: "docx",
-    size: "220 KB",
-    date: "Jan 4, 2024",
-    collection: "design-docs",
-  },
-  {
-    id: "2",
-    title: "Q4_2025 Reporting",
-    type: "pdf",
-    size: "1.2 MB",
-    date: "Jan 5, 2024",
-    collection: "reports",
-  },
-  {
-    id: "3",
-    title: "FY_2024-25 Financials",
-    type: "xls",
-    size: "628 KB",
-    date: "Jan 6, 2024",
-    collection: "financials",
-  },
-];
-
-const tabs = ["View all", "Documents", "PDFs", "Images", "Others"] as const;
-
-type TabType = (typeof tabs)[number];
-
 const typeIcons: Record<string, React.ElementType> = {
   pdf: FileText,
   docx: FileText,
   xls: FileSpreadsheet,
+  xlsx: FileSpreadsheet,
   png: Image,
   jpg: Image,
+  jpeg: Image,
   default: FileText,
 };
 
 export function LeftPanelContent() {
   const { openPanel } = usePanelControl();
   const {
+    documents,
+    // If you added these in the context, you can also destructure:
+    // isLoading,
+    // error,
     showUploadForm,
     showCreateCollectionForm,
     showIndexUrlForm,
     showProcessUploadsForm,
+    // Optional: selectDocument if you added it
+    selectDocument,
   } = useDocuments();
-  const [activeTab, setActiveTab] = React.useState<TabType>("View all");
+
   const [searchQuery, setSearchQuery] = React.useState("");
   const [selectedDocId, setSelectedDocId] = React.useState<string | null>(null);
 
+  // When a row is clicked, select that document in context and open the right panel
   const handleDocumentClick = (docId: string) => {
-    setSelectedDocId(docId);
-    openPanel(); // Opens the right panel with document details
+    const doc = documents.find((d) => d.id === docId);
+    if (doc) {
+      setSelectedDocId(docId);
+      // Tell the context which document is selected (so RightPanel can show details)
+      selectDocument?.(doc);
+      openPanel();
+    }
   };
 
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
-    if (searchQuery.trim()) {
-      // Call search_documents or hybrid_search
-      openPanel(); // Show search results in right panel
-    }
+    // For now, just rely on client-side filtering below.
+    // Later, you can wire this up to hybrid_search and show search results.
   };
 
   const handleUploadClick = () => {
@@ -100,13 +81,17 @@ export function LeftPanelContent() {
     openPanel();
   };
 
-  const filteredDocs = mockDocuments.filter((doc) => {
-    const matchesSearch = doc.title
-      .toLowerCase()
-      .includes(searchQuery.toLowerCase());
-    const matchesTab =
-      activeTab === "View all" || doc.type === activeTab.toLowerCase();
-    return matchesSearch && matchesTab;
+  // Derive a simple "type" from document metadata for filtering/icons
+  const getDocType = (doc: (typeof documents)[number]) =>
+    ((doc.metadata.document_type as string) || "").toLowerCase();
+
+  const filteredDocs = (documents ?? []).filter((doc) => {
+    const title = doc.title?.toLowerCase() || "";
+    const filename =
+      (doc.metadata.filename as string | undefined)?.toLowerCase() || "";
+    const q = searchQuery.toLowerCase();
+
+    return !q || title.includes(q) || filename.includes(q);
   });
 
   return (
@@ -141,7 +126,19 @@ export function LeftPanelContent() {
 
       {/* All Files */}
       <div className="flex-1 flex flex-col min-h-0 gap-y-5">
-        <h2 className="text-lg font-semibold">All files</h2>
+        <div className="flex items-center justify-between">
+          <h2 className="text-lg font-semibold">All files</h2>
+
+          <form onSubmit={handleSearch} className="relative">
+            <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-foreground/50" />
+            <input
+              className="text-xs pl-7 pr-2 py-1 rounded border border-border/50 bg-card/30"
+              placeholder="Search"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+            />
+          </form>
+        </div>
 
         {/* Table */}
         <div className="flex-1 overflow-auto rounded-lg border border-border/50">
@@ -150,54 +147,90 @@ export function LeftPanelContent() {
               <tr className="text-xs">
                 <th className="text-left py-3 px-4 font-medium">File name</th>
                 <th className="text-left py-3 px-4 font-medium">Collection</th>
-                <th className="text-left py-3 px-4 font-medium">
-                  Last modified
-                </th>
+                <th className="text-left py-3 px-4 font-medium">Created at</th>
                 <th className="w-10"></th>
               </tr>
             </thead>
             <tbody>
-              {(filteredDocs ?? []).map((doc: any) => {
-                const Icon = typeIcons[doc?.type] || typeIcons.default;
-                return (
-                  <tr
-                    key={doc?.id}
-                    onClick={() => handleDocumentClick(doc.id)}
-                    className={`border-t border-border/30 cursor-pointer transition-colors ${
-                      selectedDocId === doc.id
-                        ? "bg-foreground/10"
-                        : "hover:bg-card/50"
-                    }`}
+              {filteredDocs.length === 0 ? (
+                <tr>
+                  <td
+                    colSpan={4}
+                    className="py-6 px-4 text-xs text-foreground/60 text-center"
                   >
-                    <td className="py-3 px-4">
-                      <div className="flex items-center gap-3">
-                        <div className="p-2 bg-card rounded-md">
-                          <Icon className="h-4 w-4 text-foreground" />
-                        </div>
-                        <div>
-                          <div className="font-medium text-sm">{doc.title}</div>
-                          <div className="text-xs text-foreground/70">
-                            {doc.size} · {doc.type}
+                    No documents found. Try indexing a file or URL from the
+                    quick actions above.
+                  </td>
+                </tr>
+              ) : (
+                filteredDocs.map((doc) => {
+                  const docType = getDocType(doc);
+                  const Icon = typeIcons[docType] || typeIcons.default;
+                  const sizeBytes = doc.metadata.size_bytes as
+                    | number
+                    | undefined;
+                  const sizeLabel =
+                    typeof sizeBytes === "number"
+                      ? `${(sizeBytes / 1024).toFixed(1)} KB`
+                      : undefined;
+
+                  return (
+                    <tr
+                      key={doc.id}
+                      onClick={() => handleDocumentClick(doc.id)}
+                      className={
+                        "border-t border-border/30 cursor-pointer transition-colors " +
+                        (selectedDocId === doc.id
+                          ? "bg-foreground/10"
+                          : "hover:bg-card/50")
+                      }
+                    >
+                      <td className="py-3 px-4">
+                        <div className="flex items-center gap-3">
+                          <div className="p-2 bg-card rounded-md">
+                            <Icon className="h-4 w-4 text-foreground" />
+                          </div>
+                          <div>
+                            <div className="font-medium text-sm">
+                              {doc.title ||
+                                (doc.metadata.filename as string) ||
+                                doc.id}
+                            </div>
+                            {sizeLabel && (
+                              <div className="text-xs text-foreground/70">
+                                {sizeLabel}
+                              </div>
+                            )}
                           </div>
                         </div>
-                      </div>
-                    </td>
-                    <td className="py-3 px-4">
-                      <span className="text-sm text-foreground">
-                        {doc.collection}
-                      </span>
-                    </td>
-                    <td className="py-3 px-4 text-xs text-foreground/80">
-                      {doc.date}
-                    </td>
-                    <td className="py-3 px-4">
-                      <Button variant="ghost" size="icon" className="h-8 w-8">
-                        <MoreVertical className="h-4 w-4" />
-                      </Button>
-                    </td>
-                  </tr>
-                );
-              })}
+                      </td>
+                      <td className="py-3 px-4">
+                        <span className="text-sm text-foreground">
+                          {doc.collection_id}
+                        </span>
+                      </td>
+                      <td className="py-3 px-4 text-xs text-foreground/80">
+                        {doc.created_at
+                          ? new Date(doc.created_at).toLocaleString()
+                          : "—"}
+                      </td>
+                      <td className="py-3 px-4">
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-8 w-8"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleDocumentClick(doc.id);
+                          }}
+                        >
+                          <MoreVertical className="h-4 w-4" />
+                        </Button>
+                      </td>
+                    </tr>
+                  );
+                })
+              )}
             </tbody>
           </table>
         </div>
