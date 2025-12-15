@@ -2,7 +2,8 @@
 
 import * as React from "react";
 import { usePanelControl } from "./collapsible-panels";
-import { useDocuments } from "./panel-context";
+import { useDocuments, Document } from "./panel-context";
+import { mcpClient } from "@/lib/mcp-client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -540,24 +541,169 @@ function ProcessUploadsForm({ onClose }: { onClose: () => void }) {
   );
 }
 
-// Placeholder components for other views
+// Document Details Component
 function DocumentDetails({
   document,
   onClose,
 }: {
-  document: any;
+  document: Document;
   onClose: () => void;
 }) {
+  const [fullDocument, setFullDocument] = React.useState<Document | null>(null);
+  const [isLoading, setIsLoading] = React.useState(false);
+
+  React.useEffect(() => {
+    const fetchFullDetails = async () => {
+      setIsLoading(true);
+      try {
+        const result = await mcpClient.getDocument(document.id);
+        if (!("error" in result)) {
+          // Merge the full document with the existing one
+          setFullDocument({ ...document, ...result });
+        }
+      } catch (error) {
+        console.error("Failed to fetch document details:", error);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchFullDetails();
+  }, [document.id]);
+
+  const doc = fullDocument || document;
+  const metadata = doc.metadata || {};
+  const filename = metadata.filename as string | undefined;
+  const documentType = metadata.document_type as string | undefined;
+  const sizeBytes = metadata.size_bytes as number | undefined;
+  const sizeLabel = sizeBytes ? `${(sizeBytes / 1024).toFixed(1)} KB` : null;
+
   return (
-    <div className="p-6">
-      <div className="flex justify-between">
-        <h2 className="text-xl font-semibold">Document Details</h2>
-        <Button variant="ghost" size="icon" onClick={onClose}>
+    <>
+      {/* Header */}
+      <div className="flex items-start justify-between p-6 border-b border-border/50 text-foreground">
+        <div>
+          <h2 className="text-xl font-semibold">Document Details</h2>
+          <p className="text-sm text-foreground/80 mt-1">
+            View detailed information about this document
+          </p>
+        </div>
+        <Button
+          variant="ghost"
+          size="icon"
+          onClick={onClose}
+          className="h-8 w-8 shrink-0"
+        >
           <X className="h-4 w-4" />
         </Button>
       </div>
-      <p className="text-muted-foreground mt-4">Document: {document.title}</p>
-    </div>
+
+      {/* Content */}
+      <div className="flex-1 overflow-auto p-6 space-y-6">
+        {isLoading ? (
+          <div className="text-center py-8 text-muted-foreground">
+            Loading document details...
+          </div>
+        ) : (
+          <>
+            {/* Document Title */}
+            <div className="space-y-2">
+              <label className="text-sm font-medium text-muted-foreground">
+                Title
+              </label>
+              <div className="text-lg font-semibold">
+                {doc.title || "Untitled"}
+              </div>
+            </div>
+
+            {/* Document ID */}
+            <div className="space-y-2">
+              <label className="text-sm font-medium text-muted-foreground">
+                Document ID
+              </label>
+              <div className="text-sm font-mono text-foreground/80 bg-card/50 px-3 py-2 rounded border border-border/50">
+                {doc.id}
+              </div>
+            </div>
+
+            {/* Collection */}
+            <div className="space-y-2">
+              <label className="text-sm font-medium text-muted-foreground">
+                Collection
+              </label>
+              <div className="text-sm">{doc.collection_id}</div>
+            </div>
+
+            {/* Created Date */}
+            <div className="space-y-2">
+              <label className="text-sm font-medium text-muted-foreground">
+                Created At
+              </label>
+              <div className="text-sm">
+                {doc.created_at
+                  ? new Date(doc.created_at).toLocaleString()
+                  : "Unknown"}
+              </div>
+            </div>
+
+            {/* Chunks Count */}
+            {doc.chunks_count !== undefined && (
+              <div className="space-y-2">
+                <label className="text-sm font-medium text-muted-foreground">
+                  Chunks
+                </label>
+                <div className="text-sm">
+                  {doc.chunks_count.toLocaleString()}
+                </div>
+              </div>
+            )}
+
+            {/* File Information */}
+            {(filename || documentType || sizeLabel) && (
+              <div className="space-y-3 pt-2 border-t border-border/30">
+                <label className="text-sm font-medium text-muted-foreground">
+                  File Information
+                </label>
+                <div className="space-y-2">
+                  {filename && (
+                    <div className="flex items-center justify-between text-sm">
+                      <span className="text-muted-foreground">Filename:</span>
+                      <span className="font-mono">{filename}</span>
+                    </div>
+                  )}
+                  {documentType && (
+                    <div className="flex items-center justify-between text-sm">
+                      <span className="text-muted-foreground">Type:</span>
+                      <span className="uppercase">{documentType}</span>
+                    </div>
+                  )}
+                  {sizeLabel && (
+                    <div className="flex items-center justify-between text-sm">
+                      <span className="text-muted-foreground">Size:</span>
+                      <span>{sizeLabel}</span>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* Additional Metadata */}
+            {Object.keys(metadata).length > 0 && (
+              <div className="space-y-3 pt-2 border-t border-border/30">
+                <label className="text-sm font-medium text-muted-foreground">
+                  Additional Metadata
+                </label>
+                <div className="bg-card/30 rounded-lg p-4 border border-border/50">
+                  <pre className="text-xs font-mono text-foreground/80 overflow-auto">
+                    {JSON.stringify(metadata, null, 2)}
+                  </pre>
+                </div>
+              </div>
+            )}
+          </>
+        )}
+      </div>
+    </>
   );
 }
 
